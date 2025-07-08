@@ -15,8 +15,8 @@ class SLAM(Node):
         super().__init__('slam')
     
         self.map_resolution = 0.05
-        self.default_width = 100
-        self.default_height = 100
+        self.default_width = 20
+        self.default_height = 20
         
         self.map_data = np.zeros((self.default_height, self.default_width), dtype=np.int8)
         self.map_data.fill(-1)
@@ -147,7 +147,7 @@ class SLAM(Node):
         if dx > dy:
             err = dx / 2.0
             while x != x1_map:
-                if self.is_in_map(x, y) and self.map_data[y, x] != 100:
+                if self.is_in_map(x, y) and self.map_data[y, x] == -1:
                     self.map_data[y, x] = 0
                 err -= dy
                 if err < 0:
@@ -157,7 +157,7 @@ class SLAM(Node):
         else:
             err = dy / 2.0
             while y != y1_map:
-                if self.is_in_map(x, y) and self.map_data[y, x] != 100:
+                if self.is_in_map(x, y) and self.map_data[y, x] == -1:
                     self.map_data[y, x] = 0
                 err -= dx
                 if err < 0:
@@ -185,11 +185,8 @@ class SLAM(Node):
         map_msg.info.origin.position.y = self.map_origin_y
         map_msg.info.origin.position.z = 0.0
         map_msg.info.origin.orientation.w = 1.0
-        
-        # Преобразуем данные карты в формат OccupancyGrid
-        # (значения от 0 до 100, где -1 становится 0)
-        flat_map = np.clip(self.map_data, 0, 100).flatten()
-        map_msg.data = flat_map.tolist()
+    
+        map_msg.data = self.map_data.flatten().astype(np.int8).tolist()
         
         self.map_pub.publish(map_msg)
 
