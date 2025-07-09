@@ -73,12 +73,11 @@ class SLAM(Node):
             obstacle_y = self.robot_y + range_val * math.sin(angle)
             
             self.check_and_expand_map(obstacle_x, obstacle_y)
+            self.mark_free_space(self.robot_x, self.robot_y, obstacle_x, obstacle_y)
             
             map_x, map_y = self.world_to_map(obstacle_x, obstacle_y)
             if self.is_in_map(map_x, map_y):
                 self.map_data[map_y, map_x] = 100
-                
-            self.mark_free_space(self.robot_x, self.robot_y, obstacle_x, obstacle_y)
 
     def check_and_expand_map(self, world_x, world_y):
         map_x, map_y = self.world_to_map(world_x, world_y)
@@ -136,7 +135,6 @@ class SLAM(Node):
         x0_map, y0_map = self.world_to_map(x0, y0)
         x1_map, y1_map = self.world_to_map(x1, y1)
         
-        # Алгоритм Брезенхема
         dx = abs(x1_map - x0_map)
         dy = abs(y1_map - y0_map)
         x = x0_map
@@ -147,7 +145,7 @@ class SLAM(Node):
         if dx > dy:
             err = dx / 2.0
             while x != x1_map:
-                if self.is_in_map(x, y) and self.map_data[y, x] == -1:
+                if self.is_in_map(x, y) and (self.map_data[y, x] == -1 or self.map_data[y, x] == 100):
                     self.map_data[y, x] = 0
                 err -= dy
                 if err < 0:
@@ -157,13 +155,14 @@ class SLAM(Node):
         else:
             err = dy / 2.0
             while y != y1_map:
-                if self.is_in_map(x, y) and self.map_data[y, x] == -1:
+                if self.is_in_map(x, y) and (self.map_data[y, x] == -1 or self.map_data[y, x] == 100):
                     self.map_data[y, x] = 0
                 err -= dx
                 if err < 0:
                     x += sx
                     err += dy
                 y += sy
+
 
     def world_to_map(self, world_x, world_y):
         map_x = int((world_x - self.map_origin_x) / self.map_resolution)
