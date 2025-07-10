@@ -5,12 +5,6 @@
     <plugin name='gz::sim::systems::Sensors' filename='gz-sim-sensors-system'>
       <render_engine>ogre2</render_engine>
     </plugin>
-    <plugin name='Image Display' filename='ImageDisplay'>
-      <gz-gui>
-        <property key='state' type='string'>docked</property>
-      </gz-gui>
-      <topic>/camera/image_raw</topic>
-    </plugin>
 
     <plugin name='gz_ros2_control::GazeboSimROS2ControlPlugin' filename='gz_ros2_control-system'>
       <ros>
