@@ -154,7 +154,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='lidar_tf_publisher',
-            arguments=['0.8', '0', '0.31', '0', '0', '0', 'base_link', 'diff_drive/lidar_link/lidar'],
+            arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'diff_drive/lidar_link/lidar'],
             parameters=[{'use_sim_time': use_sim_time}]
         ),
 

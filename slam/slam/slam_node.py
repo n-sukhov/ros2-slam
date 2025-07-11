@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry, OccupancyGrid
@@ -8,7 +7,6 @@ from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
 import numpy as np
 import math
-from collections import deque
 
 class SLAM(Node):
     def __init__(self):
@@ -18,6 +16,9 @@ class SLAM(Node):
         self.default_width = 10
         self.default_height = 10
         
+        self.hit_increment = 25
+        self.miss_decrement = 5
+
         self.map_data = np.zeros((self.default_height, self.default_width), dtype=np.int8)
         self.map_data.fill(-1)
         
@@ -28,8 +29,6 @@ class SLAM(Node):
         self.robot_y = 0.0
         self.robot_theta = 0.0
         
-        self.position_history = deque(maxlen=1000)
-        
         self.scan_sub = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
         self.odom_sub = self.create_subscription(Odometry, '/diff_drive_base_controller/odom', self.odom_callback, 10)
         self.map_pub = self.create_publisher(OccupancyGrid, '/map', 10)
@@ -37,78 +36,18 @@ class SLAM(Node):
         self.timer = self.create_timer(0.1, self.publish_map)
         
         self.tf_broadcaster = TransformBroadcaster(self)
-        
-        self.last_odom_pos = (0.0, 0.0)
-        self.last_laser_ranges = None
-        self.stuck_counter = 0
-        self.max_stuck_count = 1
-        self.is_stuck = False
-
-        self.freeze_odometry = False
-        self.last_valid_pose = (0.0, 0.0, 0.0)  
 
         self.get_logger().info("SLAM node initialized")
 
-    def check_robot_stuck(self, current_ranges):
-        if self.last_laser_ranges is None:
-            self.last_laser_ranges = np.array(current_ranges)
-            return False
-
-        current_ranges = np.array(current_ranges)
-        last_ranges = np.array(self.last_laser_ranges)
-
-        valid_mask = ~np.isinf(current_ranges) & ~np.isnan(current_ranges) & \
-                    (current_ranges >= 0.1) & (current_ranges <= 3.0)
-        if not np.any(valid_mask):
-            return False
-
-        current_filtered = current_ranges[valid_mask]
-        last_filtered = last_ranges[valid_mask]
-
-        abs_diff = np.abs(current_filtered - last_filtered)
-        noise_threshold = 0.05
-        significant_changes = np.sum(abs_diff > noise_threshold)
-
-        changerate = significant_changes / len(current_filtered)
-        movement_threshold = 0.2
-
-        dx = self.robot_x - self.last_odom_pos[0]
-        dy = self.robot_y - self.last_odom_pos[1]
-        odom_moved = (dx**2 + dy**2) > 0.01
-
-        if odom_moved and changerate < movement_threshold:
-            self.stuck_counter += 1
-            if self.stuck_counter >= self.max_stuck_count:
-                self.freeze_odometry = True
-                return True
-        else:
-            self.stuck_counter = max(0, self.stuck_counter - 1)
-            if self.freeze_odometry and self.stuck_counter == 0:
-                self.freeze_odometry = False  
-
-        self.last_odom_pos = (self.robot_x, self.robot_y)
-        self.last_laser_ranges = current_ranges
-        return False
 
     def odom_callback(self, msg):
+        self.robot_x = msg.pose.pose.position.x
+        self.robot_y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
-        if self.freeze_odometry:
-            self.robot_x, self.robot_y, self.robot_theta = self.last_valid_pose
-        else:
-            self.robot_x = msg.pose.pose.position.x
-            self.robot_y = msg.pose.pose.position.y
-            self.robot_theta = math.atan2(2.0*(q.w*q.z + q.x*q.y), 1.0 - 2.0*(q.y*q.y + q.z*q.z))
-            self.last_valid_pose = (self.robot_x, self.robot_y, self.robot_theta)
-            self.position_history.append((self.robot_x, self.robot_y))
-        
+        self.robot_theta = math.atan2(2.0*(q.w*q.z + q.x*q.y), 1.0 - 2.0*(q.y*q.y + q.z*q.z))
         self.publish_tf()
 
     def scan_callback(self, msg):
-        if self.check_robot_stuck(np.array(msg.ranges)):
-            self.is_stuck = True
-            return
-
-        self.is_stuck = False 
         angle_min = msg.angle_min
         angle_increment = msg.angle_increment
         
@@ -122,10 +61,14 @@ class SLAM(Node):
             
             self.check_and_expand_map(obstacle_x, obstacle_y)
             self.mark_free_space(self.robot_x, self.robot_y, obstacle_x, obstacle_y)
-            
-            map_x, map_y = self.world_to_map(obstacle_x, obstacle_y)
-            if self.is_in_map(map_x, map_y):
-                self.map_data[map_y, map_x] = 100
+            self.mark_obstacle(obstacle_x, obstacle_y)
+
+    def mark_obstacle(self, x, y):
+        map_x, map_y = self.world_to_map(x, y)
+        if self.is_in_map(map_x, map_y):
+            if self.map_data[map_y, map_x] < 100:
+                self.map_data[map_y, map_x] += self.hit_increment
+                self.map_data[map_y, map_x] = min(self.map_data[map_y, map_x], 100)
 
     def check_and_expand_map(self, world_x, world_y):
         map_x, map_y = self.world_to_map(world_x, world_y)
@@ -193,8 +136,9 @@ class SLAM(Node):
         if dx > dy:
             err = dx / 2.0
             while x != x1_map:
-                if self.is_in_map(x, y) and (self.map_data[y, x] == -1 or self.map_data[y, x] == 100):
-                    self.map_data[y, x] = 0
+                if self.is_in_map(x, y):
+                    self.map_data[y, x] -= self.miss_decrement
+                    self.map_data[y, x] = max(self.map_data[y, x], 0)
                 err -= dy
                 if err < 0:
                     y += sy
@@ -203,8 +147,9 @@ class SLAM(Node):
         else:
             err = dy / 2.0
             while y != y1_map:
-                if self.is_in_map(x, y) and (self.map_data[y, x] == -1 or self.map_data[y, x] == 100):
-                    self.map_data[y, x] = 0
+                if self.is_in_map(x, y):
+                    self.map_data[y, x] -= self.miss_decrement
+                    self.map_data[y, x] = max(self.map_data[y, x], 0)
                 err -= dx
                 if err < 0:
                     x += sx
