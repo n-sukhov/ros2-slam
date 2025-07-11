@@ -2,7 +2,6 @@ import os
 from glob import glob
 from setuptools import setup, find_packages
 
-
 package_name = 'slam'
 
 setup(
@@ -17,16 +16,15 @@ setup(
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*')),
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
         (os.path.join('share', package_name, 'config'), glob('config/*')),
-        (os.path.join('share', package_name, 'sdf'), glob('sdf/*')),
-        (os.path.join('share', package_name, 'slam'), glob('slam/*')),
+        (os.path.join('share', package_name, 'sdf'), glob('sdf/*'))
 
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='ns',
     maintainer_email='nsukhov22@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Simple SLAM algorithm',
+    license='Apache 2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

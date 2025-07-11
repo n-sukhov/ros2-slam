@@ -6,7 +6,6 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
 import numpy as np
-import math
 
 class SLAM(Node):
     def __init__(self):
@@ -16,8 +15,8 @@ class SLAM(Node):
         self.default_width = 10
         self.default_height = 10
         
-        self.hit_increment = 25
-        self.miss_decrement = 5
+        self.wall_increment = 35
+        self.wall_decrement = 10
 
         self.map_data = np.zeros((self.default_height, self.default_width), dtype=np.int8)
         self.map_data.fill(-1)
@@ -44,7 +43,7 @@ class SLAM(Node):
         self.robot_x = msg.pose.pose.position.x
         self.robot_y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
-        self.robot_theta = math.atan2(2.0*(q.w*q.z + q.x*q.y), 1.0 - 2.0*(q.y*q.y + q.z*q.z))
+        self.robot_theta = np.arctan2(2.0*(q.w*q.z + q.x*q.y), 1.0 - 2.0*(q.y*q.y + q.z*q.z))
         self.publish_tf()
 
     def scan_callback(self, msg):
@@ -56,10 +55,10 @@ class SLAM(Node):
                 continue
                 
             angle = angle_min + i * angle_increment + self.robot_theta
-            obstacle_x = self.robot_x + range_val * math.cos(angle)
-            obstacle_y = self.robot_y + range_val * math.sin(angle)
+            obstacle_x = self.robot_x + range_val * np.cos(angle)
+            obstacle_y = self.robot_y + range_val * np.sin(angle)
             
-            self.check_and_expand_map(obstacle_x, obstacle_y)
+            self.expand_map(obstacle_x, obstacle_y)
             self.mark_free_space(self.robot_x, self.robot_y, obstacle_x, obstacle_y)
             self.mark_obstacle(obstacle_x, obstacle_y)
 
@@ -67,60 +66,42 @@ class SLAM(Node):
         map_x, map_y = self.world_to_map(x, y)
         if self.is_in_map(map_x, map_y):
             if self.map_data[map_y, map_x] < 100:
-                self.map_data[map_y, map_x] += self.hit_increment
+                self.map_data[map_y, map_x] += self.wall_increment
                 self.map_data[map_y, map_x] = min(self.map_data[map_y, map_x], 100)
 
-    def check_and_expand_map(self, world_x, world_y):
+    def expand_map(self, world_x, world_y, expand_size=50):
         map_x, map_y = self.world_to_map(world_x, world_y)
-        expanded = False
-        
-        while map_x < 0:
-            self.expand_map('left')
-            map_x, map_y = self.world_to_map(world_x, world_y)
-            expanded = True
-            
-        while map_x >= self.map_data.shape[1]:
-            self.expand_map('right')
-            map_x, map_y = self.world_to_map(world_x, world_y)
-            expanded = True
-            
-        while map_y < 0:
-            self.expand_map('bottom')
-            map_x, map_y = self.world_to_map(world_x, world_y)
-            expanded = True
-            
-        while map_y >= self.map_data.shape[0]:
-            self.expand_map('top')
-            map_x, map_y = self.world_to_map(world_x, world_y)
-            expanded = True
-            
-        return expanded
-
-    def expand_map(self, direction, expand_size=50):
         old_height, old_width = self.map_data.shape
         
-        if direction == 'left':
+        while map_x < 0:
             new_cols = np.zeros((old_height, expand_size), dtype=np.int8)
             new_cols.fill(-1)
             self.map_data = np.hstack((new_cols, self.map_data))
             self.map_origin_x -= expand_size * self.map_resolution
+            old_width = self.map_data.shape[1] 
+            map_x, map_y = self.world_to_map(world_x, world_y)
             
-        elif direction == 'right':
+        while map_x >= self.map_data.shape[1]:
             new_cols = np.zeros((old_height, expand_size), dtype=np.int8)
             new_cols.fill(-1)
             self.map_data = np.hstack((self.map_data, new_cols))
-            
-        elif direction == 'top':
-            new_rows = np.zeros((expand_size, old_width), dtype=np.int8)
-            new_rows.fill(-1)
-            self.map_data = np.vstack((self.map_data, new_rows))
-            
-        elif direction == 'bottom':
-            new_rows = np.zeros((expand_size, old_width), dtype=np.int8)
+            old_width = self.map_data.shape[1] 
+            map_x, map_y = self.world_to_map(world_x, world_y)
+
+        while map_y < 0:
+            new_rows = np.zeros((expand_size, self.map_data.shape[1]), dtype=np.int8)
             new_rows.fill(-1)
             self.map_data = np.vstack((new_rows, self.map_data))
             self.map_origin_y -= expand_size * self.map_resolution
+            old_height = self.map_data.shape[0]
+            map_x, map_y = self.world_to_map(world_x, world_y)
             
+        while map_y >= self.map_data.shape[0]:
+            new_rows = np.zeros((expand_size, self.map_data.shape[1]), dtype=np.int8)
+            new_rows.fill(-1)
+            self.map_data = np.vstack((self.map_data, new_rows))
+            old_height = self.map_data.shape[0]
+            map_x, map_y = self.world_to_map(world_x, world_y)
 
     def mark_free_space(self, x0, y0, x1, y1):
         x0_map, y0_map = self.world_to_map(x0, y0)
@@ -137,7 +118,7 @@ class SLAM(Node):
             err = dx / 2.0
             while x != x1_map:
                 if self.is_in_map(x, y):
-                    self.map_data[y, x] -= self.miss_decrement
+                    self.map_data[y, x] -= self.wall_decrement
                     self.map_data[y, x] = max(self.map_data[y, x], 0)
                 err -= dy
                 if err < 0:
@@ -148,14 +129,13 @@ class SLAM(Node):
             err = dy / 2.0
             while y != y1_map:
                 if self.is_in_map(x, y):
-                    self.map_data[y, x] -= self.miss_decrement
+                    self.map_data[y, x] -= self.wall_decrement
                     self.map_data[y, x] = max(self.map_data[y, x], 0)
                 err -= dx
                 if err < 0:
                     x += sx
                     err += dy
                 y += sy
-
 
     def world_to_map(self, world_x, world_y):
         map_x = int((world_x - self.map_origin_x) / self.map_resolution)

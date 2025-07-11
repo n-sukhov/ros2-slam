@@ -1,11 +1,10 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, TimerAction
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.actions import TimerAction
 
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
@@ -14,6 +13,7 @@ def generate_launch_description():
     rviz_config_path = PathJoinSubstitution([pkg_share, 'config', 'robot.rviz'])
     world_path = PathJoinSubstitution([pkg_share, 'worlds', 'world.world'])
     urdf_path = PathJoinSubstitution([pkg_share, 'urdf', 'test_diff_drive.xacro.urdf'])
+    robot_controllers = PathJoinSubstitution([pkg_share, 'config', 'diff_drive_controller.yaml'])
     
     rviz_node = Node(
         package='rviz2',
@@ -46,18 +46,10 @@ def generate_launch_description():
         arguments=[
             '-file', sdf_path,
             '-name', 'diff_drive',
-            '-x', '0', '-y', '0', '-z', '0.1'
+            '-x', '0', '-y', '0', '-z', '0'
         ],
         output='screen',
         parameters=[use_sim_time]
-    )
-
-    robot_controllers = PathJoinSubstitution(
-        [
-            FindPackageShare('slam'),
-            'config',
-            'diff_drive_controller.yaml',
-        ]
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -113,13 +105,13 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'use_sim_time',
-            default_value=use_sim_time,
-            description='If true, use simulated clock'),
+            default_value=use_sim_time
+        ),
 
         DeclareLaunchArgument(
             'description_format',
-            default_value='urdf',
-            description='Robot description format to use, urdf or sdf'),
+            default_value='urdf'
+        ),
 
         OpaqueFunction(function=robot_state_publisher),
         

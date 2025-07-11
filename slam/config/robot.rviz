@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /Grid1
+        - /LaserScan1
         - /RobotModel1
         - /RobotModel1/Mass Properties1
       Splitter Ratio: 0.5
@@ -86,7 +87,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.009999999776482582
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -180,7 +181,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -238,7 +239,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.785398006439209
+      Pitch: 0.7803980112075806
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
       Yaw: 0.785398006439209
