@@ -41,7 +41,7 @@ class ICP():
         cloud_1_h = np.hstack((A, np.ones((A.shape[0], 1)))).T
         cloud_2 = np.copy(B)
         prev_error = float('inf')
-        T_total = np.identity(n+1)
+        T_total = np.identity(n + 1)
     
         for i in range(1, self.max_iterations):
             current_cloud_1 = cloud_1_h[:n, :].T 

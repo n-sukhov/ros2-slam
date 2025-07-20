@@ -40,7 +40,7 @@ class SLAM(Node):
         
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        self.icp = ICP(20, 0.0001)
+        self.icp = ICP(40, 0.0001)
         self.scan_history = collections.deque(maxlen=4)
         self.critical_mean_error = 0.1
         
