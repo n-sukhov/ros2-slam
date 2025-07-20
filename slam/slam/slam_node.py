@@ -47,7 +47,6 @@ class SLAM(Node):
         self.get_logger().info("SLAM node initialized")
 
     def scan_callback(self, msg):
-        
         ranges = np.array(msg.ranges)
         valid_indices = (ranges >= msg.range_min) & (ranges <= msg.range_max)
         angles = msg.angle_min + np.arange(len(ranges)) * msg.angle_increment

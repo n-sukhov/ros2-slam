@@ -31,7 +31,6 @@ class ICP():
         return T
 
     def __find_nearest_neighbor(self, src, cloud_2):
-        """Заменить на свою"""
         neigh = NearestNeighbors(n_neighbors=1)
         neigh.fit(cloud_2)
         distances, indices = neigh.kneighbors(src, return_distance=True)
