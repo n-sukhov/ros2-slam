@@ -38,15 +38,15 @@ class ICP():
 
     def get_T(self, src, dst):
         n = src.shape[1]
-        src_h = np.hstack((src, np.ones((src.shape[0], 1)))).T
+        transformed_src_hom = np.hstack((src, np.ones((src.shape[0], 1)))).T
         prev_error = float('inf')
         T_total = np.identity(n + 1)
     
         for i in range(1, self.max_iterations):
-            current_src = src_h[:n, :].T 
+            current_src = transformed_src_hom[:n, :].T 
             distances, indices = self.__find_nearest_neighbor(current_src, dst)
-            T_current = self.__calculate_transform_matrix(current_src, dst[indices, :])
-            src_h = T_current @ src_h
+            T_current = self.__calculate_transform_matrix(current_src, dst[indices])
+            transformed_src_hom = T_current @ transformed_src_hom
             mean_error = np.mean(distances)
             
             if np.abs(prev_error - mean_error) < self.tolerance:
@@ -55,6 +55,6 @@ class ICP():
             prev_error = mean_error
             T_total = T_current @ T_total
     
-        T_result = self.__calculate_transform_matrix(src, src_h[:n, :].T)
+        T_result = self.__calculate_transform_matrix(src, transformed_src_hom[:n].T)
     
         return T_result, prev_error
