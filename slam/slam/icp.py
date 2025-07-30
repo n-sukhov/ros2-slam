@@ -30,24 +30,23 @@ class ICP():
 
         return T
 
-    def __find_nearest_neighbor(self, src, cloud_2):
+    def __find_nearest_neighbor(self, src, dst):
         neigh = NearestNeighbors(n_neighbors=1)
-        neigh.fit(cloud_2)
+        neigh.fit(dst)
         distances, indices = neigh.kneighbors(src, return_distance=True)
         return distances.ravel(), indices.ravel()
 
-    def get_T(self, A, B):
-        n = A.shape[1]
-        cloud_1_h = np.hstack((A, np.ones((A.shape[0], 1)))).T
-        cloud_2 = np.copy(B)
+    def get_T(self, src, dst):
+        n = src.shape[1]
+        src_h = np.hstack((src, np.ones((src.shape[0], 1)))).T
         prev_error = float('inf')
         T_total = np.identity(n + 1)
     
         for i in range(1, self.max_iterations):
-            current_cloud_1 = cloud_1_h[:n, :].T 
-            distances, indices = self.__find_nearest_neighbor(current_cloud_1, cloud_2)
-            T_current = self.__calculate_transform_matrix(current_cloud_1, cloud_2[indices, :])
-            cloud_1_h = T_current @ cloud_1_h
+            current_src = src_h[:n, :].T 
+            distances, indices = self.__find_nearest_neighbor(current_src, dst)
+            T_current = self.__calculate_transform_matrix(current_src, dst[indices, :])
+            src_h = T_current @ src_h
             mean_error = np.mean(distances)
             
             if np.abs(prev_error - mean_error) < self.tolerance:
@@ -56,6 +55,6 @@ class ICP():
             prev_error = mean_error
             T_total = T_current @ T_total
     
-        T_result = self.__calculate_transform_matrix(A, cloud_1_h[:n, :].T)
+        T_result = self.__calculate_transform_matrix(src, src_h[:n, :].T)
     
         return T_result, prev_error

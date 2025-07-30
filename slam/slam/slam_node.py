@@ -10,18 +10,16 @@ from tf_transformations import quaternion_from_euler
 from slam.icp import ICP
 import collections
 
-from time import time
-
 class SLAM(Node):
     def __init__(self):
         super().__init__('slam')
     
-        self.map_resolution = 0.05
+        self.map_resolution = 0.1
         self.default_width = 10
         self.default_height = 10
         
-        self.wall_increment = 50
-        self.wall_decrement = 10
+        self.wall_increment = 100
+        self.wall_decrement = 0
 
         self.map_data = np.zeros((self.default_height, self.default_width), dtype=np.int8)
         self.map_data.fill(-1)
@@ -40,12 +38,12 @@ class SLAM(Node):
         
         self.tf_broadcaster = TransformBroadcaster(self)
         
-        self.icp = ICP(40, 0.0001)
+        self.icp = ICP(40, 0.00001)
         self.scan_history = collections.deque(maxlen=4)
         self.critical_mean_error = 0.1
         
         self.get_logger().info("SLAM node initialized")
-
+     
     def scan_callback(self, msg):
         ranges = np.array(msg.ranges)
         valid_indices = (ranges >= msg.range_min) & (ranges <= msg.range_max)
@@ -69,7 +67,7 @@ class SLAM(Node):
                 
                 global_dx = dx * np.cos(saved_pose[2]) - dy * np.sin(saved_pose[2])
                 global_dy = dx * np.sin(saved_pose[2]) + dy * np.cos(saved_pose[2])
-                self.get_logger().info(f"mean error = {mean_error}")
+                #self.get_logger().info(f"mean error = {mean_error}")
                 if mean_error < self.critical_mean_error:
                     transformations.append((
                         saved_pose[0] + global_dx,
@@ -78,14 +76,13 @@ class SLAM(Node):
                     ))
                 
             except Exception as e:
-                self.get_logger().warn(f"ICP failed: {str(e)}")
+                self.get_logger().warn(f"ICP failed with error: {e}")
         
         if transformations:
             xs, ys, thetas = zip(*transformations)
-            
-            self.robot_x = np.median(xs)
-            self.robot_y = np.median(ys)
-            self.robot_theta = np.arctan2(np.median(np.sin(thetas)), np.median(np.cos(thetas)))
+            self.robot_x = np.mean(xs)
+            self.robot_y = np.mean(ys)
+            self.robot_theta = np.arctan2(np.mean(np.sin(thetas)), np.mean(np.cos(thetas)))
         
         self.scan_history.append((current_scan, (self.robot_x, self.robot_y, self.robot_theta)))
 
@@ -164,9 +161,11 @@ class SLAM(Node):
                     x += sx
                     err += dy
                 y += sy
-
-        self.map_data[ys, xs] -= self.wall_decrement
-        self.map_data[ys, xs] = np.maximum(self.map_data[ys, xs], 0)
+        try:
+            self.map_data[ys, xs] -= self.wall_decrement
+            self.map_data[ys, xs] = np.maximum(self.map_data[ys, xs], 0)
+        except:
+            pass
 
     def world_to_map(self, world_x, world_y):
         map_x = int((world_x - self.map_origin_x) / self.map_resolution)
